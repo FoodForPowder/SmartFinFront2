@@ -1,0 +1,45 @@
+﻿@using SmartFinFront.Models
+@using SmartFinFront.Services
+@inject CategoryService categoryService;
+@inject ISnackbar Snackbar;
+<MudDialog>
+    <DialogContent>
+        <MudTextField T="string" Immediate Placeholder="Название категории" @bind-Value="category.name"></MudTextField>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Отмена</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Submit" Disabled="@(string.IsNullOrEmpty(category.name))">
+            @(IsEdit ? "Сохранить" : "Добавить")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; }
+    [Parameter] public Category? category { get; set; } = new();
+
+    private bool IsEdit => category?.id != 0;
+
+    void Cancel() => MudDialog.Cancel();
+
+    async Task Submit()
+    {
+        try
+        {
+            if (IsEdit)
+            {
+                await categoryService.UpdateCategory(category.id, category);
+                Snackbar.Add("Категория обновлена", Severity.Success);
+            }
+            else
+            {
+                await categoryService.CreateCategory(category);
+                Snackbar.Add("Категория создана", Severity.Success);
+            }
+            MudDialog.Close(DialogResult.Ok(category));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Произошла ошибка!", Severity.Error);
+        }
+    }
+}

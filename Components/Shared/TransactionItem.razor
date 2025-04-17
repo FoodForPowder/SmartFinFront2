@@ -1,0 +1,104 @@
+﻿@using SmartFinFront.Models
+@using SmartFinFront.Services
+@inject CategoryService categoryService;
+<style>
+    .transaction {
+        padding: 10px 15px;
+        display: grid;
+        grid-template-columns: 3fr 2fr 1fr
+    }
+
+    .trsaction__name {
+        font-weight: 500;
+    }
+
+    .trsaction__category {
+        color: #757575;
+    }
+
+    .trsaction__date {
+        color: #757575;
+    }
+
+    .trsaction__amount {
+        font-weight: 600;
+    }
+</style>
+<div class="transaction">
+    <div class="transaction__column">
+        @if (!isEditing)
+        {
+            <div class="trsaction__name">@transacnion.Name</div>
+            <div class="trsaction__category">@(category?.name ?? "Нет категории")</div>
+        }
+        else
+        {
+            <div class="trsaction__name">
+                <MudTextField T="string" @bind-Value="@transacnion.Name" Immediate="true" />
+            </div>
+            <CategorySelect @bind-CategoryId="@transacnion.CategoryId" />
+        }
+    </div>
+    <div class="transaction__column">
+        @if (!isEditing)
+        {
+            <div class="trsaction__date">@transacnion.Date.Value.ToString("dd.MM.yyyy")</div>
+            <div class="trsaction__amount">@transacnion.sum₽</div>
+        }
+        else
+        {
+            <div class="trsaction__date">
+                <MudTextField T="DateTime ?" @bind-Value="@transacnion.Date" Immediate="true" />
+            </div>
+            <div class="trsaction__amount">
+                <MudTextField T="decimal" @bind-Value="@transacnion.sum" Immediate="true" />
+            </div>
+        }
+    </div>
+    <div class="transaction__column">
+        <MudIconButton Icon="@Icons.Material.Outlined.Delete"
+            OnClick="@(async () => await OnTransactionDeleted.InvokeAsync(transacnion))" Size="Size.Small" />
+        @if (!isEditing)
+        {
+            <MudIconButton Icon="@Icons.Material.Outlined.Edit" OnClick="@(() => isEditing = true)" Size="Size.Small" />
+        }
+        else
+        {
+            <MudIconButton Icon="@Icons.Material.Outlined.Check" OnClick="@(async () => await SaveTransaction())"
+                Size="Size.Small" />
+        }
+    </div>
+
+
+</div>
+
+@code {
+    [Parameter] public Transaction transacnion { get; set; }
+    [Parameter] public EventCallback<Transaction> OnTransactionUpdated { get; set; }
+    [Parameter] public EventCallback<Transaction> OnTransactionDeleted { get; set; }
+
+
+    bool isEditing;
+    Category category = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (transacnion.CategoryId.HasValue)
+        {
+            category = await categoryService.GetCategory(transacnion.CategoryId.Value);
+        }
+        else
+        {
+            category = new Category()
+            {
+                name = "Нет категории"
+            };
+        }
+    }
+
+    async Task SaveTransaction()
+    {
+        await OnTransactionUpdated.InvokeAsync(transacnion);
+        isEditing = false;
+    }
+}

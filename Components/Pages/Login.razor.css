@@ -1,0 +1,12 @@
+﻿.subtitle {   
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 39.01px;
+    text-align: left;
+}
+.content{
+    display:flex;
+    flex-direction:column;
+    align-items:center
+}
+

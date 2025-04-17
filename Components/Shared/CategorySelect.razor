@@ -1,0 +1,93 @@
+﻿@using MudBlazor
+@using SmartFinFront.Components.Dialogs
+@using SmartFinFront.Models
+@using SmartFinFront.Services
+
+
+@inject IDialogService DialogService;
+@inject CategoryService categoryService;
+
+@inject ISnackbar Snackbar
+<div class="d-flex">
+    <MudSelect T="int?" Label="Категория" Value="@CategoryId" ValueChanged="@OnCategorySelected"
+        Placeholder="Категория">
+        @foreach (var category in categories)
+        {
+            <div class="d-flex align-baseline">
+                <MudSelectItem Value="(int?)category.id">@category.name
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                        OnClick="@(async () => await DeleteCategory(category))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                        OnClick="@(async () => await OpenEditCategoryDialog(category))" />
+                </MudSelectItem>
+
+            </div>
+        }
+    </MudSelect>
+    <MudIconButton Icon="@Icons.Material.Filled.Add" OnClick="@(async () => await OpenAddCategoryDialog())" />
+</div>
+@code {
+    [Parameter] public int? CategoryId { get; set; }
+    [Parameter] public EventCallback<int?> CategoryIdChanged { get; set; }
+    List<Category> categories = new();
+    protected override async Task OnInitializedAsync()
+    {
+        categories = (await categoryService.GetUserCategories()).ToList() ?? new();
+    }
+    private async Task DeleteCategory(Category cat)
+    {
+        try
+        {
+            await categoryService.DeleteCategory(cat.id);
+            categories.Remove(cat);
+            Snackbar.Add("Категория удалена", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("Произошла ошибка", Severity.Error);
+        }
+
+
+    }
+    private async Task OpenAddCategoryDialog()
+    {
+        var dialog = await DialogService.ShowAsync<CreateCategoryDialog>("Введите информацию о категории", new DialogOptions()
+        {
+            MaxWidth = MaxWidth.Large,
+            CloseButton = true,
+            Position = DialogPosition.Center
+        });
+        var result = await dialog.Result;
+        if (!result.Canceled)
+        {
+            categories = (await categoryService.GetUserCategories()).ToList();
+
+        }
+    }
+    private async Task OpenEditCategoryDialog(Category category)
+    {
+        var parameters = new DialogParameters
+        {
+            ["category"] = new Category { id = category.id, name = category.name }
+        };
+
+        var dialog = await DialogService.ShowAsync<CreateCategoryDialog>("Редактирование категории", parameters,
+        new DialogOptions
+        {
+            MaxWidth = MaxWidth.Large,
+            CloseButton = true,
+            Position = DialogPosition.Center
+        });
+
+        var result = await dialog.Result;
+        if (!result.Canceled)
+        {
+            categories = (await categoryService.GetUserCategories()).ToList();
+        }
+    }
+    private async Task OnCategorySelected(int? value)
+    {
+        CategoryId = value;
+        await CategoryIdChanged.InvokeAsync(value);
+    }
+}

@@ -1,0 +1,93 @@
+@using SmartFinFront.Models
+@using SmartFinFront.Services
+@inject NotificationService _notificationService
+@inject ISnackbar Snackbar
+
+<MudMenu Icon="@Icons.Material.Outlined.Notifications" Color="Color.Inherit" AnchorOrigin="Origin.BottomRight"
+    TransformOrigin="Origin.TopRight" Dense="true">
+    <ActivatorContent>
+        <MudIconButton Icon="@Icons.Material.Outlined.Notifications" Color="Color.Inherit">
+            @if (unreadCount > 0)
+            {
+                <MudBadge Color="Color.Error" Content="@unreadCount" Overlap="true" Bordered="true" />
+            }
+        </MudIconButton>
+    </ActivatorContent>
+    <ChildContent>
+        <MudText Typo="Typo.h6" Class="px-4 py-2">Уведомления</MudText>
+        <MudDivider />
+
+        @if (isLoading)
+        {
+            <div class="d-flex justify-center my-4">
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+            </div>
+        }
+        else if (notifications.Count == 0)
+        {
+            <MudMenuItem Class="px-4 py-2" Disabled="true">
+                У вас нет новых уведомлений
+            </MudMenuItem>
+        }
+        else
+        {
+            <div style="max-height: 400px; overflow-y: auto; min-width: 320px;">
+                @foreach (var notification in notifications.Take(5))
+                {
+                    <MudMenuItem Class="px-4 py-2">
+                        <div class="d-flex flex-column">
+                            <div class="@(notification.IsRead ? "mud-text-secondary" : "")">
+                                <MudText Typo="Typo.body2">@notification.Message</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @notification.CreatedAt.ToString("dd.MM.yyyy HH:mm")
+                                </MudText>
+                            </div>
+                        </div>
+                    </MudMenuItem>
+                    <MudDivider />
+                }
+            </div>
+
+
+        }
+    </ChildContent>
+</MudMenu>
+
+@code {
+    [Parameter]
+    public int UserId { get; set; }
+
+
+    private List<Notification> notifications = new();
+    private bool isLoading = true;
+    private int unreadCount = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadNotifications();
+    }
+
+    private async Task LoadNotifications()
+    {
+        isLoading = true;
+        try
+        {
+            notifications = await _notificationService.GetUserNotifications(UserId);
+            unreadCount = notifications.Count(n => !n.IsRead);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Не удалось загрузить уведомления", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    public async Task RefreshNotifications()
+    {
+        await LoadNotifications();
+    }
+}

@@ -1,0 +1,150 @@
+﻿@using SmartFinFront.Models
+@using SmartFinFront.Services
+@using SmartFinFront.Components.Dialogs
+@inject ISnackbar Snackbar;
+@inject GoalService _goalService;
+@inject IDialogService DialogService;
+@rendermode InteractiveServer
+<MudCard Class="mb-4" Elevation="0">
+    <MudCardContent>
+        <div class="d-flex justify-space-between align-center mb-2">
+            @if (!isEditing)
+            {
+                <MudText Typo="Typo.h6">
+                    @goal.name
+                </MudText>
+            }
+            else
+            {
+                <MudTextField T="string" @bind-Value="@goal.name" Immediate="true" />
+            }
+            <div>
+                <MudIconButton Icon="@Icons.Material.Outlined.Add" Size="Size.Small" OnClick="@(async () => await OpenContributionDialog())" />
+                @if (!isEditing)
+                {
+                    <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="@(() => isEditing = true)" />
+                }
+                else
+                {
+                    <MudIconButton Icon="@Icons.Material.Outlined.Check" Size="Size.Small" OnClick="@(async() => await EditGoal(goal))" />
+                }
+                <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" OnClick="@(async () => await DeleteGoal(goal))" />
+            </div>
+        </div>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                @if (!isEditing)
+                {
+                    <MudText Typo="Typo.body2">
+                        @goal.description
+                    </MudText>
+                }
+                else
+                {
+                    <MudTextField T="string" @bind-Value="@goal.description" Immediate="true" />
+                }
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                @if (!isEditing)
+                {
+                    <MudText Typo="Typo.body2">Начало: @goal.dateOfStart.Value.ToShortDateString()</MudText>
+                    <MudText Typo="Typo.body2">
+                        Окончание: @goal.dateOfEnd.Value.ToShortDateString()
+                    </MudText>
+                }
+                else
+                {
+                    <MudTextField T="DateTime?" @bind-Value="@goal.dateOfStart" Immediate="true" />
+                    <MudTextField T="DateTime?" @bind-Value="@goal.dateOfEnd" Immediate="true" />
+                }
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                @if (!isEditing)
+                {
+                    <MudText Typo="Typo.body2" Align="Align.Right">
+                        @goal.currentSum.ToString("C")/@goal.plannedSum.ToString("C")
+                    </MudText>
+                }
+                else
+                {
+                    <MudTextField T="decimal" @bind-Value="@goal.plannedSum" Immediate="true" />
+                }
+                <MudText Typo="Typo.body2" Align="Align.Right" Color="@GetStatusColor(goal.status)">@goal.status</MudText>
+            </MudItem>
+        </MudGrid>
+        <MudProgressLinear Color="@GetProgressColor(goal.currentSum, goal.plannedSum)" Value="@((float)(goal.currentSum / goal.plannedSum * 100))" Class="my-2">
+
+        </MudProgressLinear>
+        <MudText Typo="Typo.subtitle2">Последний взнос: @goal.lastContributionDate.ToShortDateString() - @goal.lastMonthContribution.ToString("C")</MudText>
+        <MudText Typo="Typo.subtitle2">Ежемесячный взнос: @goal.payment.ToString("C")</MudText>
+    </MudCardContent>
+</MudCard>
+@code {
+    [Parameter]
+    public Goal goal { get; set; }
+    [Parameter] public EventCallback<Goal> OnGoalUpdated { get; set; }
+    [Parameter] public EventCallback<Goal> OnGoalDeleted { get; set; }
+    bool isEditing;
+
+
+    private Color GetStatusColor(string status) => status switch
+    {
+        "В процессе" => Color.Info,
+        "Завершено" => Color.Success,
+        _ => Color.Default
+    };
+
+    private Color GetProgressColor(decimal current, decimal planned)
+    {
+        decimal percentage = 0;
+        try
+        {
+            percentage = current / planned;
+        }
+        catch (DivideByZeroException ex)
+        {
+            percentage = 0;
+        }
+        return percentage switch
+        {
+            var p when p >= 0.9m => Color.Success,
+            var p when p >= 0.6m => Color.Info,
+            var p when p >= 0.3m => Color.Warning,
+            _ => Color.Error
+        };
+    }
+
+    private async Task EditGoal(Goal goal)
+    {
+        await OnGoalUpdated.InvokeAsync(goal);
+        isEditing = false;
+    }
+
+    private async Task ContributeGoal(decimal amount)
+    {
+        try
+        {
+            await _goalService.ContributeToGoalAsync(goal.id, amount, goal.UserId);
+            goal =await  _goalService.GetUsersGoalById(goal.id, goal.UserId);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message);
+        }
+    }
+    private async Task OpenContributionDialog()
+    {
+        var dialog = await DialogService.ShowAsync<ContributeGoalDialog>("Внести платеж", new DialogParameters<ContributeGoalDialog>() { { x => x.amount, goal.payment } }, new DialogOptions() { MaxWidth = MaxWidth.Medium, CloseButton = true, Position = DialogPosition.Center });
+        var result = await dialog.Result;
+        if (!result.Canceled)
+        {
+            await ContributeGoal((decimal)result.Data);
+        }
+    }
+
+    private async Task DeleteGoal(Goal goal)
+    {
+        await OnGoalDeleted.InvokeAsync(goal);
+    }
+}

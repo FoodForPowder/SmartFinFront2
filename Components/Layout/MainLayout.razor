@@ -1,0 +1,52 @@
+﻿@using SmartFinFront.Components.Shared
+@using SmartFinFront.Services
+@inherits LayoutComponentBase
+@inject NavigationManager NavigationManager
+@inject AuthService _authService
+<style>
+    .mud-appbar {
+        background-image: url('/img/background.png') !important;
+        background-size: cover !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+    }
+</style>
+<MudLayout>
+    @* Required *@
+    <MudThemeProvider />
+    <MudPopoverProvider />
+
+    @* Needed for dialogs *@
+    <MudDialogProvider />
+
+    @* Needed for snackbars *@
+    <MudSnackbarProvider />
+
+
+
+    @if (!isHideAppBar)
+    {
+        <MudAppBar Elevation="0" Class="appbar" Color="Color.Dark">
+
+            <div class="title-with-logo">
+                <MudText Class="h2">SmartFin</MudText>
+                <div class="logo-medium">
+                    <img src="/svg/Logo.svg" alt="Logo" />
+                </div>
+            </div>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Outlined.Home" Color="Color.Inherit" />
+            <MudIconButton Icon="@Icons.Material.Outlined.AccountCircle" Color="Color.Inherit" />
+            @if (_authService._userAuthInfo != null)
+            {
+                <NotificationPopover UserId="@_authService._userAuthInfo.userId" />
+            }
+        </MudAppBar>
+    }
+    <MudMainContent>
+        @Body
+    </MudMainContent>
+</MudLayout>
+@code {
+    bool isHideAppBar => new[] { "login", "register" }.Contains(NavigationManager.Uri.ToLower().Split('/').Last());
+}

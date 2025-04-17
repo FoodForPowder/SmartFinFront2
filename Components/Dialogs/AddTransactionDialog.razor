@@ -1,0 +1,45 @@
+﻿@using SmartFinFront.Components.Shared
+@using SmartFinFront.Models
+@using SmartFinFront.Services
+
+@inject CategoryService categoryService;
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="@isValid">
+            <MudTextField T="string" Label="Название" @bind-Value="transaction.Name" Required="true"
+                RequiredError="Название обязательно" />
+            <MudNumericField T="decimal" Label="Сумма" @bind-Value="transaction.sum" Required="true"
+                RequiredError="Сумма обязательна" />
+            <MudDatePicker Label="Дата" @bind-Date="transaction.Date" />
+            <CategorySelect @bind-CategoryId="transaction.CategoryId" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Отмена</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Submit" Disabled="@(!isValid)">Добавить</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; }
+    [Parameter] public int userId { get; set; }
+
+
+    MudForm form;
+
+    bool isValid;
+
+    Transaction transaction = new();
+
+    void Cancel() => MudDialog.Cancel();
+
+    void Submit()
+    {
+        MudDialog.Close(DialogResult.Ok(transaction));
+    }
+
+
+
+}

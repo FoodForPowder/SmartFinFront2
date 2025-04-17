@@ -1,0 +1,52 @@
+﻿@using MudBlazor
+@using SmartFinFront.Models
+@using SmartFinFront.Services
+
+
+@inject UserService _userService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="@success">
+            <MudTextField T="string" Label="Имя" @bind-Value="user.Name" Required="true"
+                          RequiredError="Имя обязательно" />
+
+            <MudTextField T="string" Label="Номер телефона" @bind-Value="user.PhoneNumber" Required="true"
+                          RequiredError="Номер телефона обязателен" />
+
+            <MudNumericField T="decimal" Label="Ежемесячный доход" @bind-Value="user.MonthlyIncome" Required="true"
+                             RequiredError="Доход обязателен" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Отмена</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Submit" Disabled="@(!success)">Сохранить</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; }
+    [Parameter] public User user { get; set; } = new();
+
+    private bool success;
+    private MudForm form;
+
+    private async Task Submit()
+    {
+        try
+        {
+            await _userService.UpdateUser(user.Id.ToString(), user);
+            await _userService.SetMonthlyIncome(int.Parse(user.Id), user.MonthlyIncome);
+
+            Snackbar.Add("Информация обновлена", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(user));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Произошла ошибка при обновлении", Severity.Error);
+        }
+    }
+
+    void Cancel() => MudDialog.Cancel();
+}

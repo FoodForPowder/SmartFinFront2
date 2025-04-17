@@ -1,0 +1,368 @@
+﻿@page "/user/{userId:int}"
+
+@using SmartFinFront.Components.Dialogs
+@using SmartFinFront.Components.Shared
+@using SmartFinFront.Models
+@using SmartFinFront.Services
+@using System.Globalization
+
+@inject UserService _userService;
+@inject TransactionService _transactionService;
+@inject GoalService _goalService;
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar;
+@inject CategoryService _categoryService;
+
+@rendermode InteractiveServer
+<style>
+    .mud-button-filled {
+        background-color: white !important;
+        box-shadow: 0px 2px 8px 0px rgba(0, 0, 0, 0.4);
+        border-radius: 25px;
+        flex: 1;
+    }
+
+    .mud-tab.mud-tab-active {
+        color: var(--mud-palette-info);
+    }
+
+    .mud-tooltip-root {
+        border-radius: 25px;
+        width: 300px;
+    }
+
+    .tabs {
+        border-radius: 25px;
+    }
+
+    .tabs__content {
+        overflow: auto;
+        max-height: 500px;
+    }
+
+    .tabs__card {
+        position: relative;
+    }
+     .mud-select {
+        width: 250px;
+    }
+    
+    .mud-input {
+        background-color: white;
+    }
+</style>
+@if (user != null)
+{
+    <div class="content">
+        <div class="user-info">
+            <div class="user-info__name d-flex align-center gap-2">
+                <p class="user-info__name">@user.Name</p>
+                <MudIconButton Size="Size.Small" 
+                              Icon="@Icons.Material.Filled.Edit" 
+                              OnClick="@(async () => await OpenEditUserDialog())" />
+            </div>
+            <MudPaper Style="padding:24px; border-radius:25px">
+                <div class="user-info__block">
+                    <div class="user-info__title">Номер телефона:</div>
+                    <div class="user-info__item">@user.PhoneNumber</div>
+                </div>
+                <div class="user-info__block">
+                    <div class="user-info__title">Ваш доход:</div>
+                    <div class="user-info__item">@user.MonthlyIncome.ToString("N0", CultureInfo.GetCultureInfo("ru-RU")) ₽</div>
+                </div>
+                <div class="user-info__block">
+                    <div class="user-info__title">Фактический доход за месяц:</div>
+                    <div class="user-info__item">@(UserFactMonthlyIncome) ₽</div>
+                </div>
+                <div class="user-info__block">
+                    <div class="user-info__title">Расходы за месяц</div>
+                    <div class="user-info__item">@(UserMonthlyExpenses) ₽</div>
+                </div>
+                <div class="user-info__block">
+                    <div class="user-info__title">Остаток</div>
+                    <div class="user-info__item">@(UserBalance) ₽</div>
+                </div>
+            </MudPaper>
+        </div>
+
+
+        <div class="actions">
+            <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.ArrowForward" Color="Color.Default" OnClick="@(async () => await OpenAddTransactionDialog())"><MudText>Добавить транзакцию</MudText></MudButton>
+            <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.ArrowForward" Color="Color.Default" OnClick="@(async () => await OpenAddGoalDialog())"><MudText>Добавить цель</MudText></MudButton>
+        </div>
+
+
+        <MudTabs Elevation="2"
+                 Class="tabs"
+                 ApplyEffectsToContainer="true"
+                 PanelClass="pa-6"
+                 SliderColor="Color.Info"
+                 TabHeaderClass="tabs"
+                 IconColor="Color.Info"
+                 MinimumTabWidth="300">
+            <MudTabPanel Text="История транзакций">
+    <div class="tabs__content">
+         <MudSelect T="int" Label="Категория" @bind-Value="selectedCategoryId" Placeholder="Категория"
+         Style="margin-bottom: 16px; background-color: white; border-radius: 8px;">
+         <MudSelectItem Value="0">Все категории</MudSelectItem>
+                @foreach (var category in categories)
+                {
+                    <MudSelectItem Value="(int)category.id">@category.name</MudSelectItem>
+                }  
+                
+            </MudSelect>
+        
+        @if (GetFilteredTransactions().Any())
+        {
+            @foreach (var transaction in GetFilteredTransactions())
+            {
+                <TransactionItem OnTransactionDeleted="DeleteTransaction" 
+                               OnTransactionUpdated="UpdateTransaction" 
+                               transacnion="@transaction" />
+            }
+        }
+        else
+        {
+            <MudText>Транзакции не найдены</MudText>
+        }
+    </div>
+</MudTabPanel>
+            <MudTabPanel Text="Финансовые цели">
+                <div class="tabs__content">
+                    @if (goals.Any())
+                    {
+                        @foreach (var goal in goals)
+                        {
+
+                            <GoalItem OnGoalDeleted="DeleteGoal" OnGoalUpdated="UpdateGoal" goal="@goal" />
+                        }
+
+                    }
+                    else
+                    {
+                        <MudText>У вас пока нет ни одной цели</MudText>
+                    }
+                </div>
+            </MudTabPanel>
+        </MudTabs>
+    </div>
+}
+@code {
+    [Parameter]
+    public int userId { get; set; }
+private int selectedCategoryId;
+private List<Category> categories = new();
+    User user { get; set; }
+
+    string UserMonthlyExpenses = "0";
+    string UserFactMonthlyIncome = "0";
+    string UserBalance = "0";
+
+    List<Transaction> transactions = new();
+    // List<Transaction>
+    //     {
+    //         new Transaction { id = 1, sum = 1500.50m, Date = DateTime.Now.AddDays(-1), Name = "Продукты в супермаркете", UserId = 1, CategoryId = 1 },
+    //         new Transaction { id = 2, sum = 3000.00m, Date = DateTime.Now.AddDays(-3), Name = "Оплата аренды", UserId = 1, CategoryId = 2 },
+    //         new Transaction { id = 3, sum = 500.00m, Date = DateTime.Now.AddDays(-5), Name = "Кафе с друзьями", UserId = 1, CategoryId = 3 },
+    //         new Transaction { id = 4, sum = 2000.00m, Date = DateTime.Now.AddDays(-7), Name = "Покупка одежды", UserId = 1, CategoryId = 4 },
+    //         new Transaction { id = 5, sum = 1000.00m, Date = DateTime.Now.AddDays(-10), Name = "Оплата интернета", UserId = 1, CategoryId = 5 },
+    //         new Transaction { id = 6, sum = 5000.00m, Date = DateTime.Now.AddDays(-15), Name = "Ремонт автомобиля", UserId = 1, CategoryId = 6 },
+    //         new Transaction { id = 7, sum = 800.00m, Date = DateTime.Now.AddDays(-18), Name = "Книги", UserId = 1, CategoryId = 7 },
+    //         new Transaction { id = 8, sum = 3500.00m, Date = DateTime.Now.AddDays(-22), Name = "Подарок на день рождения", UserId = 1, CategoryId = 8 },
+    //         new Transaction { id = 9, sum = 1200.00m, Date = DateTime.Now.AddDays(-25), Name = "Оплата мобильной связи", UserId = 1, CategoryId = 5 },
+    //         new Transaction { id = 10, sum = 7000.00m, Date = DateTime.Now.AddDays(-30), Name = "Покупка бытовой техники", UserId = 1, CategoryId = 9 },
+    //         new Transaction { id = 11, sum = 600.00m, Date = DateTime.Now.AddDays(-33), Name = "Аптека", UserId = 1, CategoryId = 10 },
+    //         new Transaction { id = 12, sum = 2500.00m, Date = DateTime.Now.AddDays(-38), Name = "Ресторан", UserId = 1, CategoryId = 3 },
+    //         new Transaction { id = 13, sum = 1800.00m, Date = DateTime.Now.AddDays(-42), Name = "Оплата коммунальных услуг", UserId = 1, CategoryId = 2 },
+    //         new Transaction { id = 14, sum = 4000.00m, Date = DateTime.Now.AddDays(-45), Name = "Покупка электроники", UserId = 1, CategoryId = 9 },
+    //         new Transaction { id = 15, sum = 900.00m, Date = DateTime.Now.AddDays(-50), Name = "Спортивные товары", UserId = 1, CategoryId = 11 }
+    //     };
+
+    List<Goal> goals = new();
+    // List<Goal>
+    //         {
+    //             new Goal
+    //             {
+    //                 id = 1,
+    //                 dateOfStart = DateTime.Now.AddMonths(-6),
+    //                 dateOfEnd = DateTime.Now.AddMonths(6),
+    //                 payment = 50000,
+    //                 name = "Новый автомобиль",
+    //                 description = "Накопить на семейный автомобиль",
+    //                 plannedSum = 1000000,
+    //                 currentSum = 600000,
+    //                 status = "В процессе",
+    //                 UserId = 1,
+    //                 lastMonthContribution = 50000,
+    //                 lastContributionDate = DateTime.Now.AddDays(-5)
+    //             },
+    //             new Goal
+    //             {
+    //                 id = 2,
+    //                 dateOfStart = DateTime.Now.AddMonths(-2),
+    //                 dateOfEnd = DateTime.Now.AddMonths(4),
+    //                 payment = 30000,
+    //                 name = "Отпуск на Бали",
+    //                 description = "Накопить на двухнедельный отпуск на Бали",
+    //                 plannedSum = 300000,
+    //                 currentSum = 90000,
+    //                 status = "В процессе",
+    //                 UserId = 1,
+    //                 lastMonthContribution = 30000,
+    //                 lastContributionDate = DateTime.Now.AddDays(-2)
+    //             },
+    //             new Goal
+    //             {
+    //                 id = 3,
+    //                 dateOfStart = DateTime.Now.AddMonths(-3),
+    //                 dateOfEnd = DateTime.Now.AddDays(10),
+    //                 payment = 20000,
+    //                 name = "Новый ноутбук",
+    //                 description = "Купить мощный ноутбук для работы",
+    //                 plannedSum = 150000,
+    //                 currentSum = 140000,
+    //                 status = "Близко к завершению",
+    //                 UserId = 1,
+    //                 lastMonthContribution = 20000,
+    //                 lastContributionDate = DateTime.Now.AddDays(-1)
+    //             },
+    //             new Goal
+    //             {
+    //                 id = 4,
+    //                 dateOfStart = DateTime.Now.AddMonths(-12),
+    //                 dateOfEnd = DateTime.Now.AddYears(2),
+    //                 payment = 100000,
+    //                 name = "Первоначальный взнос на квартиру",
+    //                 description = "Накопить на первоначальный взнос для ипотеки",
+    //                 plannedSum = 3000000,
+    //                 currentSum = 1200000,
+    //                 status = "В процессе",
+    //                 UserId = 1,
+    //                 lastMonthContribution = 100000,
+    //                 lastContributionDate = DateTime.Now.AddDays(-3)
+    //             },
+    //             new Goal
+    //             {
+    //                 id = 5,
+    //                 dateOfStart = DateTime.Now.AddMonths(-1),
+    //                 dateOfEnd = DateTime.Now.AddMonths(2),
+    //                 payment = 10000,
+    //                 name = "Подарок на юбилей",
+    //                 description = "Накопить на подарок родителям к юбилею",
+    //                 plannedSum = 50000,
+    //                 currentSum = 15000,
+    //                 status = "Отстает от графика",
+    //                 UserId = 1,
+    //                 lastMonthContribution = 5000,
+    //                 lastContributionDate = DateTime.Now.AddDays(-7)
+    //             }
+    //         };
+
+    protected override async Task OnInitializedAsync()
+    {
+        user = await _userService.GetUser(userId);
+        transactions = (await _transactionService.GetUserTransactions(userId)).ToList();
+        goals = (await _goalService.GetUsersGoals(userId)).ToList();
+        UserMonthlyExpenses = transactions.Where(x => x.sum < 0 && x.Date.Value.Month == DateTime.Now.Month && x.Date.Value.Year == DateTime.Now.Year)
+                            .Sum(x => x.sum).ToString("N0", CultureInfo.GetCultureInfo("ru-RU"));
+        UserFactMonthlyIncome = transactions.Where(x => x.sum > 0 && x.Date.Value.Month == DateTime.Now.Month && x.Date.Value.Year == DateTime.Now.Year)
+                        .Sum(x => x.sum).ToString("N0", CultureInfo.GetCultureInfo("ru-RU"));
+        UserBalance = (user.MonthlyIncome + transactions.Where(x => x.sum < 0 && x.Date.Value.Month == DateTime.Now.Month && x.Date.Value.Year == DateTime.Now.Year)
+                            .Sum(x => x.sum)).ToString("N0", CultureInfo.GetCultureInfo("ru-RU"));
+                            categories = (await _categoryService.GetUserCategories()).ToList();
+    }
+private IEnumerable<Transaction> GetFilteredTransactions()
+{
+    if (selectedCategoryId == 0)
+        return transactions;
+    
+    return transactions.Where(t => t.CategoryId == selectedCategoryId);
+}
+    async Task AddNewGoal(Goal goal)
+    {
+        goal.UserId = userId;
+        await _goalService.CreateUserGoal(goal);
+        goals = (await _goalService.GetUsersGoals(userId)).ToList();
+    }
+
+    async Task UpdateGoal(Goal goal)
+    {
+        await _goalService.UpdateUserGoal(goal);
+        goals = (await _goalService.GetUsersGoals(userId)).ToList();
+    }
+    async Task DeleteGoal(Goal goal)
+    {
+        await _goalService.DeleteGoal(goal);
+        goals = (await _goalService.GetUsersGoals(userId)).ToList();
+    }
+
+    async Task AddNewTransaction(Transaction transaction)
+    {
+        transaction.UserId = userId;
+        await _transactionService.CreateUserTransaction(transaction);
+        transactions = (await _transactionService.GetUserTransactions(userId)).ToList();
+    }
+
+    async Task UpdateTransaction(Transaction transaction)
+    {
+        await _transactionService.UpdateUserTransaction(transaction);
+        transactions = (await _transactionService.GetUserTransactions(userId)).ToList();
+    }
+    async Task DeleteTransaction(Transaction transaction)
+    {
+        await _transactionService.DeleteTransaction(transaction);
+        transactions = (await _transactionService.GetUserTransactions(userId)).ToList();
+    }
+
+    async Task OpenAddGoalDialog()
+    {
+        var dialog = await DialogService.ShowAsync<AddGoalDialog>("Введите информацию о цели", new DialogParameters<AddGoalDialog> {  { x=> x.userId , userId } }, new DialogOptions() { MaxWidth = MaxWidth.Large, CloseButton = true, Position = DialogPosition.Center });
+        var result = await dialog.Result;
+        if (!result.Canceled)
+        {
+            goals = (await _goalService.GetUsersGoals(userId)).ToList();
+
+        }
+    }
+    async Task OpenAddTransactionDialog()
+    {
+        var dialog = await DialogService.ShowAsync<AddTransactionDialog>("Введите информацию о транзакции", new DialogOptions() { MaxWidth = MaxWidth.Large, CloseButton = true, Position = DialogPosition.Center });
+        var result = await dialog.Result;
+        if (!result.Canceled)
+        {
+            await AddNewTransaction((Transaction)result.Data);
+
+        }
+    }
+    private async Task OpenEditUserDialog()
+    {
+        var parameters = new DialogParameters
+        {
+            ["user"] = new User 
+            { 
+                Id = user.Id,
+                Name = user.Name,
+                Email = user.Email,
+                PhoneNumber = user.PhoneNumber,
+                MonthlyIncome = user.MonthlyIncome
+            }
+        };
+
+        var dialog = await DialogService.ShowAsync<EditUserDialog>(
+            "Редактирование профиля",
+            parameters,
+            new DialogOptions
+            {
+                MaxWidth = MaxWidth.Small,
+                CloseButton = true,
+                Position = DialogPosition.Center
+            });
+
+        var result = await dialog.Result;
+        if (!result.Canceled)
+        {
+            user = await _userService.GetUser(userId);
+            StateHasChanged();
+        }
+    }
+}
