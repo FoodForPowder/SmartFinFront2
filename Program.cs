@@ -1,3 +1,4 @@
+using ApexCharts;
 using MudBlazor;
 using MudBlazor.Services;
 using SmartFinFront.Components;
@@ -28,7 +29,8 @@ builder.Services.AddMudServices(config =>
     config.SnackbarConfiguration.ShowTransitionDuration = 500;
     config.SnackbarConfiguration.SnackbarVariant = Variant.Filled;
 });
-
+// Add ApexCharts
+builder.Services.AddApexCharts();
 
 var app = builder.Build();
 

@@ -3,29 +3,35 @@
 @inject ISnackbar Snackbar;
 @inject GoalService _goalService;
 @inject IDialogService DialogService
+@inject UserService _userService
 @rendermode InteractiveServer
 <MudDialog>
     <DialogContent>
         <MudForm @ref="form" @bind-IsValid="@isValid">
-            <MudTextField T="string" Label="Название" @bind-Value="goal.name" Required="true" RequiredError="Название обязательно" />
+            <MudTextField T="string" Label="Название" @bind-Value="goal.name" Required="true"
+                RequiredError="Название обязательно" />
 
             <MudTextField T="string" Label="Описание" @bind-Value="goal.description" />
 
-            <MudNumericField T="decimal" Label="Запланированная сумма" @bind-Value="goal.plannedSum" Required="true" RequiredError="Запланированная сумма обязательна" />
+            <MudNumericField T="decimal" Label="Запланированная сумма" @bind-Value="goal.plannedSum" Required="true"
+                RequiredError="Запланированная сумма обязательна" />
 
-            <MudNumericField T="decimal" Label="Ежемесячный платеж" @bind-Value="goal.payment" Required="true" RequiredError="Ежемесячный платеж обязателен" />
+            <MudNumericField T="decimal" Label="Ежемесячный платеж" @bind-Value="goal.payment" Required="true"
+                RequiredError="Ежемесячный платеж обязателен" />
 
             <MudDatePicker PickerVariant="PickerVariant.Inline" OpenTo="OpenTo.Month" FixDay="1" DateFormat="yyyy/MM"
-                           Label="Дата начала" @bind-Date="goal.dateOfStart" IsDateDisabledFunc="@((DateTime dt)=>(dt >  DateTime.Now))" />
+                Label="Дата начала" @bind-Date="goal.dateOfStart"
+                IsDateDisabledFunc="@((DateTime dt) => (dt > DateTime.Now))" />
 
             <MudDatePicker PickerVariant="PickerVariant.Inline" OpenTo="OpenTo.Month" FixDay="1" DateFormat="yyyy/MM"
-                           Label="Дата окончания" @bind-Date="goal.dateOfEnd"
-                           IsDateDisabledFunc="@((DateTime dt)=>(dt <=  DateTime.Now))" />
+                Label="Дата окончания" @bind-Date="goal.dateOfEnd"
+                IsDateDisabledFunc="@((DateTime dt) => (dt <= DateTime.Now))" />
         </MudForm>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">Отмена</MudButton>
-        <MudButton Color="Color.Primary" OnClick="@(async()=>await Submit())" Disabled="@(!isValid)">Добавить</MudButton>
+        <MudButton Color="Color.Primary" OnClick="@(async () => await Submit())" Disabled="@(!isValid)">Добавить
+        </MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -41,18 +47,21 @@
 
     Goal goal = new();
 
+
+
+
     void Cancel() => MudDialog.Cancel();
 
     async Task Submit()
     {
-        goal.UserId = userId;
+        goal.UserId = new List<int>() { userId };
         responseMessage = await _goalService.CreateUserGoal(goal);
         if (responseMessage.Contains("Невозможно создать цель"))
         {
             var dialogResult = await DialogService.ShowMessageBox(
-                "Превышение лимита",
-                "Сумма ежемесячных отчислений превышает 20% дохода. Хотите выполнить автоматический перерасчет?",
-                yesText: "Да", cancelText: "Нет");
+            "Превышение лимита",
+            "Сумма ежемесячных отчислений превышает 20% дохода. Хотите выполнить автоматический перерасчет?",
+            yesText: "Да", cancelText: "Нет");
 
             if (dialogResult == true)
             {

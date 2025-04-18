@@ -89,6 +89,12 @@
         <div class="actions">
             <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.ArrowForward" Color="Color.Default" OnClick="@(async () => await OpenAddTransactionDialog())"><MudText>Добавить транзакцию</MudText></MudButton>
             <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.ArrowForward" Color="Color.Default" OnClick="@(async () => await OpenAddGoalDialog())"><MudText>Добавить цель</MudText></MudButton>
+            <MudButton Variant="Variant.Filled" 
+               EndIcon="@Icons.Material.Filled.Upload" 
+               Color="Color.Default" 
+               OnClick="@(async () => await OpenImportDialog())">
+        <MudText>Импортировать выписку</MudText>
+    </MudButton>
         </div>
 
 
@@ -134,7 +140,7 @@
                         @foreach (var goal in goals)
                         {
 
-                            <GoalItem OnGoalDeleted="DeleteGoal" OnGoalUpdated="UpdateGoal" goal="@goal" />
+                            <GoalItem OnGoalDeleted="DeleteGoal" OnGoalUpdated="UpdateGoal" goal="@goal" UserId="@userId" />
                         }
 
                     }
@@ -280,7 +286,7 @@ private IEnumerable<Transaction> GetFilteredTransactions()
 }
     async Task AddNewGoal(Goal goal)
     {
-        goal.UserId = userId;
+        goal.UserId.Add(userId);
         await _goalService.CreateUserGoal(goal);
         goals = (await _goalService.GetUsersGoals(userId)).ToList();
     }
@@ -365,4 +371,29 @@ private IEnumerable<Transaction> GetFilteredTransactions()
             StateHasChanged();
         }
     }
+    private async Task OpenImportDialog()
+    {
+        var parameters = new DialogParameters
+        {
+            ["userId"] = userId
+        };
+
+        var dialog = await DialogService.ShowAsync<ImportStatementDialog>(
+            "Импорт банковской выписки",
+            parameters,
+            new DialogOptions
+            {
+                MaxWidth = MaxWidth.Small,
+                CloseButton = true,
+                Position = DialogPosition.Center
+            });
+
+        var result = await dialog.Result;
+        if (!result.Canceled)
+        {
+            transactions = (await _transactionService.GetUserTransactions(userId)).ToList();
+            StateHasChanged();
+        }
+    }
+}
 }

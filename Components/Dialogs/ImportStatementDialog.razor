@@ -1,0 +1,133 @@
+@using SmartFinFront.Services
+@inject IDialogService DialogService
+@inject TransactionService _transactionService
+@inject ISnackbar Snackbar
+
+<style>
+    .import-dialog {
+        min-width: 400px;
+        padding: 16px;
+    }
+
+    .file-upload-section {
+        margin-top: 24px;
+        padding: 16px;
+        border: 2px dashed var(--mud-palette-primary);
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    .selected-file {
+        margin-top: 16px;
+        padding: 12px;
+        background-color: var(--mud-palette-background-grey);
+        border-radius: 4px;
+    }
+</style>
+
+<MudDialog Class="import-dialog">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Импорт банковской выписки</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="@success">
+            <MudSelect T="string" Label="Выберите банк" @bind-Value="selectedBank" Required="true"
+                RequiredError="Необходимо выбрать банк" Variant="Variant.Outlined">
+                <MudSelectItem Value="@("tinkoff")">
+                    <div class="d-flex align-center gap-3">
+                        Тинькофф
+                    </div>
+                </MudSelectItem>
+                <MudSelectItem Value="@("sberbank")">
+                    <div class="d-flex align-center gap-3">
+
+                        Сбербанк
+                    </div>
+                </MudSelectItem>
+                <MudSelectItem Value="@("yandex")">
+                    <div class="d-flex align-center gap-3">
+
+                        Яндекс Банк
+                    </div>
+                </MudSelectItem>
+                <MudSelectItem Value="@("vtb")">
+                    <div class="d-flex align-center gap-3">
+
+                        ВТБ
+                    </div>
+                </MudSelectItem>
+            </MudSelect>
+
+            <div class="file-upload-section">
+                <MudFileUpload Accept=".pdf" T="IBrowserFile" FilesChanged="OnInputFileChanged">
+                    <ActivatorContent>
+                        <MudButton  StartIcon="@Icons.Material.Filled.CloudUpload"
+                            Size="Size.Large" Variant="Variant.Filled">
+                            Выберите файл выписки
+                        </MudButton>
+                        <MudText Typo="Typo.body2" Class="mt-2" Color="Color.Secondary">
+                            Поддерживаемый формат PDF
+                        </MudText>
+                    </ActivatorContent>
+                </MudFileUpload>
+            </div>
+
+            @if (file != null)
+            {
+                <div class="selected-file">
+                    <MudText Class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.Description" />
+                        @file.Name
+                    </MudText>
+                </div>
+            }
+        </MudForm>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Outlined" Color="Color.Default">
+            Отмена
+        </MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ImportAsync"
+            StartIcon="@Icons.Material.Filled.Upload" Disabled="@(string.IsNullOrEmpty(selectedBank) || file == null)">
+            Импортировать
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; }
+    [Parameter] public int userId { get; set; }
+
+    private bool success;
+    private MudForm form;
+    private string selectedBank;
+    private IBrowserFile file;
+
+    private void OnInputFileChanged(IBrowserFile file)
+    {
+        this.file = file;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task ImportAsync()
+    {
+        try
+        {
+            var content = new MultipartFormDataContent();
+            var fileContent = new StreamContent(file.OpenReadStream(maxAllowedSize: 1024 * 1024 * 10)); // 10MB max
+            content.Add(fileContent, "file", file.Name);
+
+            var response = await _transactionService.ImportBankStatement(userId, selectedBank, content);
+
+            Snackbar.Add("Выписка успешно импортирована", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(response));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Ошибка при импорте: {ex.Message}", Severity.Error);
+        }
+    }
+}

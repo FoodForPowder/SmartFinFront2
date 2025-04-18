@@ -1,0 +1,287 @@
+﻿@page "/dashboard/{userId:int}"
+@using ApexCharts
+@using SmartFinFront.Services
+@using SmartFinFront.Models
+@using System.Globalization
+@inject TransactionService _transactionService
+@inject CategoryService _categoryService
+@rendermode InteractiveServer
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h4" Class="mb-4">Финансовая аналитика</MudText>
+
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4">
+                <MudSelect T="string" Value="displayMode" Label="Режим отображения" ValueChanged="@HandleDisplayModeChange" Class="mb-4">
+                    <MudSelectItem Value="@("categories")">По категориям</MudSelectItem>
+                    <MudSelectItem Value="@("dates")">По датам</MudSelectItem>
+                </MudSelect>
+
+                <MudSelect T="ApexCharts.SeriesType" Value="selectedChartType" Label="Тип диаграммы" ValueChanged="@HandleChartTypeChange" Class="mb-4">
+                    <MudSelectItem Value="@(ApexCharts.SeriesType.Pie)">Круговая диаграмма</MudSelectItem>
+                    <MudSelectItem Value="@(ApexCharts.SeriesType.Bar)">Столбчатая диаграмма</MudSelectItem>
+                    <MudSelectItem Value="@(ApexCharts.SeriesType.Line)">Линейная диаграмма</MudSelectItem>
+                </MudSelect>
+
+                @if (shouldRenderChart && chartData != null && chartData.Any())
+                {
+                    <div id="chart-container">
+                        <ApexChart @ref="chart" TItem="ChartDataPoint" 
+                        Title="@(displayMode == "categories" ? "Расходы по категориям" : "Расходы по датам")"
+                        Options="options">
+                            <ApexPointSeries TItem="ChartDataPoint" Items="chartData" Name="Сумма"
+                            XValue="@(e => e.Label)" YValue="@(e => e.Value)" SeriesType="selectedChartType" />
+                        </ApexChart>
+                    </div>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body1" Align="MudBlazor.Align.Center" Class="my-4">
+                        @(isLoading ? "Загрузка данных..." : "Нет данных для отображения")
+                    </MudText>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.h6" Class="mb-4">Настройки диаграммы</MudText>
+                <div class="d-flex gap-4 mb-4">
+                    <MudDateRangePicker DateRange="dateRange" DateRangeChanged="HandleDateFilterApply" Label="Выберите период" DateFormat="dd.MM.yyyy"
+                    AutoClose="true" AdornmentColor="MudBlazor.Color.Primary" PickerVariant="PickerVariant.Dialog"  />
+                </div>
+
+                <MudSelect T="string" Value="dateGrouping" Label="Группировка по датам"
+                ValueChanged="@HandleDateGroupingChange" Class="mb-4" Disabled="@(displayMode != "dates")">
+                    <MudSelectItem Value="@("day")">По дням</MudSelectItem>
+                    <MudSelectItem Value="@("week")">По неделям</MudSelectItem>
+                    <MudSelectItem Value="@("month")">По месяцам</MudSelectItem>
+                </MudSelect>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+    [Parameter] public int userId { get; set; }
+
+    private ApexChart<ChartDataPoint> chart;
+    private List<ChartDataPoint> chartData = new();
+    private List<Transaction> transactions = new();
+    private List<Category> categories = new();
+    private ApexChartOptions<ChartDataPoint> options = new();
+
+    private ApexCharts.SeriesType selectedChartType = ApexCharts.SeriesType.Pie;
+    private string displayMode = "categories";
+    private string dateGrouping = "day";
+    private DateRange dateRange = new(DateTime.Now.AddMonths(-1), DateTime.Now);
+
+    private bool showLegend = true;
+    private bool enableAnimation = true;
+    private bool showLabels = true;
+    private bool isLoading = true;
+    private bool shouldRenderChart = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+        options = GetChartOptions();
+        await ProcessChartData();
+        isLoading = false;
+        shouldRenderChart = true;
+    }
+
+    private async Task LoadData()
+    {
+        transactions = (await _transactionService.GetUserTransactions(userId)).ToList();
+        categories = (await _categoryService.GetUserCategories()).ToList();
+    }
+
+    private async Task ProcessChartData()
+    {
+        // Filter transactions by date range
+        var filteredTransactions = transactions
+            .Where(t => t.Date.HasValue && 
+                  t.Date.Value.Date >= dateRange.Start.GetValueOrDefault().Date && 
+                  t.Date.Value.Date <= dateRange.End.GetValueOrDefault().Date)
+            .ToList();
+
+        if (displayMode == "categories")
+        {
+            chartData = filteredTransactions
+                .GroupBy(t => t.CategoryId)
+                .Select(g => new ChartDataPoint
+                {
+                    Label = categories.FirstOrDefault(c => c.id == g.Key)?.name ?? "Без категории",
+                    Value = Math.Abs(g.Sum(t => t.sum)) // Absolute value for expenses
+                })
+                .Where(d => d.Value > 0) // Only show categories with values
+                .OrderByDescending(d => d.Value)
+                .ToList();
+        }
+        else // displayMode == "dates"
+        {
+            switch (dateGrouping)
+            {
+                case "day":
+                    chartData = filteredTransactions
+                        .GroupBy(t => t.Date.Value.Date)
+                        .Select(g => new ChartDataPoint
+                        {
+                            Label = g.Key.ToString("dd.MM.yyyy"),
+                            Value = Math.Abs(g.Sum(t => t.sum < 0 ? t.sum : 0)) // Only expenses (negative values)
+                        })
+                        .OrderBy(d => DateTime.ParseExact(d.Label, "dd.MM.yyyy", CultureInfo.InvariantCulture))
+                        .ToList();
+                    break;
+
+                case "week":
+                    chartData = filteredTransactions
+                        .GroupBy(t => CultureInfo.CurrentCulture.Calendar.GetWeekOfYear(
+                            t.Date.Value.Date, CalendarWeekRule.FirstDay, DayOfWeek.Monday))
+                        .Select(g => new ChartDataPoint
+                        {
+                            Label = $"Неделя {g.Key}",
+                            Value = Math.Abs(g.Sum(t => t.sum < 0 ? t.sum : 0))
+                        })
+                        .OrderBy(d => d.Label)
+                        .ToList();
+                    break;
+
+                case "month":
+                    chartData = filteredTransactions
+                        .GroupBy(t => new { t.Date.Value.Year, t.Date.Value.Month })
+                        .Select(g => new ChartDataPoint
+                        {
+                            Label = $"{g.Key.Month}.{g.Key.Year}",
+                            Value = Math.Abs(g.Sum(t => t.sum < 0 ? t.sum : 0))
+                        })
+                        .OrderBy(d => {
+                            var parts = d.Label.Split('.');
+                            return new DateTime(int.Parse(parts[1]), int.Parse(parts[0]), 1);
+                        })
+                        .ToList();
+                    break;
+            }
+        }
+
+        // Update chart options
+        options = GetChartOptions();
+    }
+
+    private ApexChartOptions<ChartDataPoint> GetChartOptions()
+    {
+        return new ApexChartOptions<ChartDataPoint>
+        {
+            Chart = new Chart
+            {
+                Animations = new Animations
+                {
+                    Enabled = enableAnimation
+                },
+                Toolbar = new Toolbar
+                {
+                    Show = true,
+                    Tools = new Tools
+                    {
+                        Download = true
+                    }
+                }
+            },
+            Legend = new Legend
+            {
+                Show = showLegend,
+                Position = LegendPosition.Right
+            },
+            DataLabels = new DataLabels
+            {
+                Enabled = showLabels
+            },
+            PlotOptions = new PlotOptions
+            {
+                Pie = new PlotOptionsPie
+                {
+                    DataLabels = new PieDataLabels
+                    {
+                        Offset = 0
+                    }
+                },
+                Bar = new PlotOptionsBar
+                {
+                    Horizontal = false
+                }
+            },
+            Xaxis = new XAxis
+            {
+                Labels = new XAxisLabels
+                {
+                    Rotate = -45,
+                    Style = new AxisLabelStyle
+                    {
+                        FontSize = "12px"
+                    }
+                }
+            },
+            Title = new Title
+            {
+                Text = displayMode == "categories" ? "Расходы по категориям" : "Расходы по датам",
+                Align = ApexCharts.Align.Center
+            }
+        };
+    }
+
+    // Используем паттерн "debounce" для изменений, которые требуют перерисовки диаграммы
+    private async Task HandleDisplayModeChange(string value)
+    {
+        displayMode = value;
+        shouldRenderChart = false;
+        await ProcessChartData();
+        StateHasChanged();
+        await Task.Delay(50); // Небольшая задержка перед перерисовкой
+        shouldRenderChart = true;
+        StateHasChanged();
+    }
+
+    private async Task HandleChartTypeChange(ApexCharts.SeriesType value)
+    {
+        selectedChartType = value;
+        shouldRenderChart = false;
+        await ProcessChartData();
+        StateHasChanged();
+        await Task.Delay(50);
+        shouldRenderChart = true;
+        StateHasChanged();
+    }
+
+    private async Task HandleDateGroupingChange(string value)
+    {
+        dateGrouping = value;
+        if (displayMode == "dates")
+        {
+            shouldRenderChart = false;
+            await ProcessChartData();
+            StateHasChanged();
+            await Task.Delay(50);
+            shouldRenderChart = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleDateFilterApply(DateRange range)
+    {
+        this.dateRange = range;
+        shouldRenderChart = false;
+        await ProcessChartData();
+        StateHasChanged();
+        await Task.Delay(50);
+        shouldRenderChart = true;
+        StateHasChanged();
+    }
+
+    public class ChartDataPoint
+    {
+        public string Label { get; set; }
+        public decimal Value { get; set; }
+    }
+}

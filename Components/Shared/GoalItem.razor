@@ -4,6 +4,9 @@
 @inject ISnackbar Snackbar;
 @inject GoalService _goalService;
 @inject IDialogService DialogService;
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject UserService _userService
 @rendermode InteractiveServer
 <MudCard Class="mb-4" Elevation="0">
     <MudCardContent>
@@ -19,16 +22,22 @@
                 <MudTextField T="string" @bind-Value="@goal.name" Immediate="true" />
             }
             <div>
-                <MudIconButton Icon="@Icons.Material.Outlined.Add" Size="Size.Small" OnClick="@(async () => await OpenContributionDialog())" />
+                <MudIconButton Icon="@Icons.Material.Outlined.Add" Size="Size.Small"
+                    OnClick="@(async () => await OpenContributionDialog())" />
+                <MudIconButton Icon="@Icons.Material.Outlined.Share" Size="Size.Small"
+                    OnClick="@(async () => await ShareGoal())" />
                 @if (!isEditing)
                 {
-                    <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="@(() => isEditing = true)" />
+                    <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small"
+                        OnClick="@(() => isEditing = true)" />
                 }
                 else
                 {
-                    <MudIconButton Icon="@Icons.Material.Outlined.Check" Size="Size.Small" OnClick="@(async() => await EditGoal(goal))" />
+                    <MudIconButton Icon="@Icons.Material.Outlined.Check" Size="Size.Small"
+                        OnClick="@(async () => await EditGoal(goal))" />
                 }
-                <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" OnClick="@(async () => await DeleteGoal(goal))" />
+                <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small"
+                    OnClick="@(async () => await DeleteGoal(goal))" />
             </div>
         </div>
         <MudGrid>
@@ -54,8 +63,8 @@
                 }
                 else
                 {
-                    <MudTextField T="DateTime?" @bind-Value="@goal.dateOfStart" Immediate="true" />
-                    <MudTextField T="DateTime?" @bind-Value="@goal.dateOfEnd" Immediate="true" />
+                    <MudTextField T="DateTime ?" @bind-Value="@goal.dateOfStart" Immediate="true" />
+                    <MudTextField T="DateTime ?" @bind-Value="@goal.dateOfEnd" Immediate="true" />
                 }
             </MudItem>
             <MudItem xs="12" sm="3">
@@ -69,23 +78,66 @@
                 {
                     <MudTextField T="decimal" @bind-Value="@goal.plannedSum" Immediate="true" />
                 }
-                <MudText Typo="Typo.body2" Align="Align.Right" Color="@GetStatusColor(goal.status)">@goal.status</MudText>
+                <MudText Typo="Typo.body2" Align="Align.Right" Color="@GetStatusColor(goal.status)">@goal.status
+                </MudText>
             </MudItem>
         </MudGrid>
-        <MudProgressLinear Color="@GetProgressColor(goal.currentSum, goal.plannedSum)" Value="@((float)(goal.currentSum / goal.plannedSum * 100))" Class="my-2">
+        <MudProgressLinear Color="@GetProgressColor(goal.currentSum, goal.plannedSum)"
+            Value="@((float)(goal.currentSum / goal.plannedSum * 100))" Class="my-2">
 
         </MudProgressLinear>
-        <MudText Typo="Typo.subtitle2">Последний взнос: @goal.lastContributionDate.ToShortDateString() - @goal.lastMonthContribution.ToString("C")</MudText>
+        <MudText Typo="Typo.subtitle2">Последний взнос: @goal.lastContributionDate.ToShortDateString() -
+            @goal.lastMonthContribution.ToString("C")</MudText>
         <MudText Typo="Typo.subtitle2">Ежемесячный взнос: @goal.payment.ToString("C")</MudText>
+
+        @if (participants.Count > 1)
+        {
+            <MudDivider Class="my-2" />
+            <MudText Typo="Typo.subtitle2">Участники:</MudText>
+            <MudList T="User" Dense="true">
+                @foreach (var participant in participants)
+                {
+                    <MudListItem T="User">
+                        <MudText Typo="Typo.body2">@participant.Name</MudText>
+                    </MudListItem>
+                }
+            </MudList>
+        }
     </MudCardContent>
 </MudCard>
 @code {
     [Parameter]
     public Goal goal { get; set; }
+    [Parameter]
+    public int UserId { get; set; } // Добавляем параметр для ID пользователя
     [Parameter] public EventCallback<Goal> OnGoalUpdated { get; set; }
     [Parameter] public EventCallback<Goal> OnGoalDeleted { get; set; }
     bool isEditing;
 
+    private List<User> participants = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (goal.UserId != null && goal.UserId.Count > 1)
+        {
+            participants = new List<User>();
+            foreach (var userId in goal.UserId)
+            {
+                try
+                {
+                    var user = await _userService.GetUser(userId);
+                    if (user != null)
+                    {
+                        participants.Add(user);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Ошибка при получении информации о пользователе {userId}: {ex.Message}");
+                }
+            }
+        }
+    }
 
     private Color GetStatusColor(string status) => status switch
     {
@@ -116,6 +168,7 @@
 
     private async Task EditGoal(Goal goal)
     {
+        goal.UserId = new List<int> { UserId }; // Устанавливаем UserId перед обновлением
         await OnGoalUpdated.InvokeAsync(goal);
         isEditing = false;
     }
@@ -124,8 +177,8 @@
     {
         try
         {
-            await _goalService.ContributeToGoalAsync(goal.id, amount, goal.UserId);
-            goal =await  _goalService.GetUsersGoalById(goal.id, goal.UserId);
+            await _goalService.ContributeToGoalAsync(goal.id, amount, UserId); // Используем UserId
+            goal = await _goalService.GetUsersGoalById(goal.id, UserId); // Используем UserId
             StateHasChanged();
         }
         catch (Exception ex)
@@ -135,7 +188,14 @@
     }
     private async Task OpenContributionDialog()
     {
-        var dialog = await DialogService.ShowAsync<ContributeGoalDialog>("Внести платеж", new DialogParameters<ContributeGoalDialog>() { { x => x.amount, goal.payment } }, new DialogOptions() { MaxWidth = MaxWidth.Medium, CloseButton = true, Position = DialogPosition.Center });
+        var dialog = await DialogService.ShowAsync<ContributeGoalDialog>("Внести платеж", new
+        DialogParameters<ContributeGoalDialog>() { { x => x.amount, goal.payment } }, new DialogOptions()
+        {
+            MaxWidth =
+        MaxWidth.Medium,
+            CloseButton = true,
+            Position = DialogPosition.Center
+        });
         var result = await dialog.Result;
         if (!result.Canceled)
         {
@@ -145,6 +205,24 @@
 
     private async Task DeleteGoal(Goal goal)
     {
+        goal.UserId = new List<int> { UserId }; // Устанавливаем UserId перед удалением
         await OnGoalDeleted.InvokeAsync(goal);
+    }
+
+    private async Task ShareGoal()
+    {
+        try
+        {
+            var baseUrl = NavigationManager.BaseUri.TrimEnd('/');
+            var inviteLink = $"{baseUrl}/join/{goal.id}";
+
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", inviteLink);
+            Snackbar.Add("Ссылка-приглашение скопирована в буфер обмена", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Ошибка при создании ссылки-приглашения", Severity.Error);
+            Console.WriteLine($"Ошибка при создании ссылки-приглашения: {ex.Message}");
+        }
     }
 }

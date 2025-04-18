@@ -1,8 +1,10 @@
 ﻿@using SmartFinFront.Components.Shared
 @using SmartFinFront.Services
+@using System.Web
 @inherits LayoutComponentBase
 @inject NavigationManager NavigationManager
 @inject AuthService _authService
+@inject ISnackbar Snackbar
 <style>
     .mud-appbar {
         background-image: url('/img/background.png') !important;
@@ -10,6 +12,24 @@
         background-position: center !important;
         background-repeat: no-repeat !important;
     }
+
+    .nav-link {
+        color: white;
+        text-decoration: none;
+        margin-right: 16px;
+        padding: 8px 16px;
+        border-radius: 20px;
+        transition: background-color 0.3s;
+    }
+
+        .nav-link:hover,
+        .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .nav-link.active {
+            font-weight: bold;
+        }
 </style>
 <MudLayout>
     @* Required *@
@@ -22,12 +42,9 @@
     @* Needed for snackbars *@
     <MudSnackbarProvider />
 
-
-
     @if (!isHideAppBar)
     {
         <MudAppBar Elevation="0" Class="appbar" Color="Color.Dark">
-
             <div class="title-with-logo">
                 <MudText Class="h2">SmartFin</MudText>
                 <div class="logo-medium">
@@ -35,11 +52,27 @@
                 </div>
             </div>
             <MudSpacer />
-            <MudIconButton Icon="@Icons.Material.Outlined.Home" Color="Color.Inherit" />
-            <MudIconButton Icon="@Icons.Material.Outlined.AccountCircle" Color="Color.Inherit" />
+
             @if (_authService._userAuthInfo != null)
             {
-                <NotificationPopover UserId="@_authService._userAuthInfo.userId" />
+                <div class="d-flex align-center">
+                    <a href="@($"/user/{_authService._userAuthInfo.userId}")"
+                       class="nav-link @(IsActivePage($"/user/{_authService._userAuthInfo.userId}") ? "active" : "")">
+                        <span class="d-flex align-center">
+                            <MudIcon Icon="@Icons.Material.Outlined.Home" Class="mr-2" />
+                            Главная
+                        </span>
+                    </a>
+
+                    <a href="@($"/dashboard/{_authService._userAuthInfo.userId}")"
+                       class="nav-link @(IsActivePage($"/dashboard/{_authService._userAuthInfo.userId}") ? "active" : "")">
+                        <span class="d-flex align-center">
+                            <MudIcon Icon="@Icons.Material.Outlined.Dashboard" Class="mr-2" />
+                            Аналитика
+                        </span>
+                    </a>
+                    <NotificationPopover UserId="@_authService._userAuthInfo.userId" />
+                </div>
             }
         </MudAppBar>
     }
@@ -47,6 +80,13 @@
         @Body
     </MudMainContent>
 </MudLayout>
+
 @code {
     bool isHideAppBar => new[] { "login", "register" }.Contains(NavigationManager.Uri.ToLower().Split('/').Last());
+
+    private bool IsActivePage(string href)
+    {
+        var currentUri = NavigationManager.Uri.ToLower();
+        return currentUri.EndsWith(href.ToLower());
+    }
 }

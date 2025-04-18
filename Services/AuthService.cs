@@ -23,16 +23,16 @@ namespace SmartFinFront.Services
             if (response.IsSuccessStatusCode)
             {
                 userAuthInfo = await response.Content.ReadFromJsonAsync<UserAuthInfo>();
-                _userAuthInfo = userAuthInfo;   
+                _userAuthInfo = userAuthInfo;
             }
 
             return userAuthInfo;
         }
-        public async Task<string> GetToken()
+        public string GetToken()
         {
-            
-                return _userAuthInfo.AccessToken ?? throw new Exception("_userAuthInfo is null");
-            
+
+            return _userAuthInfo.AccessToken ?? throw new Exception("_userAuthInfo is null");
+
         }
     }
 }

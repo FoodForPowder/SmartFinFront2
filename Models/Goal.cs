@@ -21,7 +21,7 @@
 
         public string status { get; set; } = string.Empty;
 
-        public int UserId { get; set; }
+        public List<int> UserId { get; set; } = new();
 
         public decimal lastMonthContribution { get; set; }
         public DateTime lastContributionDate { get; set; }

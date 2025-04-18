@@ -1,0 +1,87 @@
+﻿@page "/join/{goalId:int}"
+@using SmartFinFront.Models
+@using SmartFinFront.Services
+@inject GoalService _goalService
+@inject AuthService _authService
+@inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
+@rendermode InteractiveServer
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex flex-column align-center justify-center my-8">
+    <MudPaper Elevation="3" Class="pa-6 mud-width-full">
+        @if (_isLoading)
+        {
+            <div class="d-flex justify-center my-4">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+                <MudText Class="ml-4">Обработка приглашения...</MudText>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mb-4">
+                @_errorMessage
+            </MudAlert>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" FullWidth="true" OnClick="NavigateToHome">
+                Вернуться на главную
+            </MudButton>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Success" Variant="Variant.Filled" Class="mb-4">
+                Вы успешно присоединились к цели!
+            </MudAlert>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" FullWidth="true" OnClick="NavigateToHome">
+                Перейти к списку целей
+            </MudButton>
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    [Parameter] public int goalId { get; set; }
+
+    private bool _isLoading = true;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (_authService._userAuthInfo == null)
+        {
+            _errorMessage = "Необходимо войти в систему для присоединения к цели";
+            _isLoading = false;
+            return;
+        }
+
+        await ProcceedJoinGoal();
+    }
+
+    private async Task ProcceedJoinGoal()
+    {
+        try
+        {
+             await _goalService.JoinGoal(goalId, _authService._userAuthInfo.userId);
+            Snackbar.Add("Вы успешно присоединились к цели", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Ошибка при присоединении к цели: {ex.Message}";
+            Snackbar.Add("Ошибка при присоединении к цели", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void NavigateToHome()
+    {
+        if (_authService._userAuthInfo != null)
+        {
+            NavigationManager.NavigateTo($"/user/{_authService._userAuthInfo.userId}");
+        }
+        else
+        {
+            NavigationManager.NavigateTo("/login");
+        }
+    }
+}

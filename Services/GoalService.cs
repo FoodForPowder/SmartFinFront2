@@ -8,10 +8,15 @@ using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace SmartFinFront.Services
 {
-    public class GoalService(ApiService apiService)
+    public class GoalService
     {
         private readonly string _baseUrl = "https://localhost:7015/api/Goal";
-        private readonly ApiService _apiService = apiService;
+        private readonly ApiService _apiService;
+
+        public GoalService(ApiService apiService)
+        {
+            _apiService = apiService;
+        }
 
         public async Task<Goal> GetUsersGoalById(int goalId, int userId)
         {
@@ -41,7 +46,7 @@ namespace SmartFinFront.Services
                 name = goal.name,
                 description = goal.description,
                 plannedSum = goal.plannedSum,
-                UserId = goal.UserId
+                UserId = goal.UserId.FirstOrDefault()
 
             });
             var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -64,7 +69,7 @@ namespace SmartFinFront.Services
                 status = goal.status,
             });
             var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var request = new HttpRequestMessage(HttpMethod.Put, $"{_baseUrl}/{goal.id}?userId={goal.UserId}") { Content = content };
+            var request = new HttpRequestMessage(HttpMethod.Put, $"{_baseUrl}/{goal.id}?userId={goal.UserId.FirstOrDefault()}") { Content = content };
             var response = await _apiService.SendRequestAsync(request);
             return await response.Content.ReadAsStringAsync();
         }
@@ -82,7 +87,7 @@ namespace SmartFinFront.Services
             var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/recalculate") { Content = new StringContent(json, Encoding.UTF8, "application/json") };
 
             var response = await _apiService.SendRequestAsync(request);
-            
+
             response.EnsureSuccessStatusCode();
             return JsonSerializer.Deserialize<GoalResponse>(await response.Content.ReadAsStringAsync())
                 ?? throw new Exception("Goal is null");
@@ -94,8 +99,27 @@ namespace SmartFinFront.Services
             var request = new HttpRequestMessage(HttpMethod.Put, $"{_baseUrl}/{goalId}/contribute?userId={userId}&amount={amount}");
             var response = await _apiService.SendRequestAsync(request);
             var a = await response.Content.ReadAsStringAsync();
-            response.EnsureSuccessStatusCode();           
+            response.EnsureSuccessStatusCode();
         }
+
+        public async Task<string> GenerateInviteLink(int goalId)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/{goalId}/invite");
+            var response = await _apiService.SendRequestAsync(request);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsStringAsync();
+        }
+
+        public async Task JoinGoal(int goalId, int userId)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/join/{goalId}?userId={userId}");
+            var response =  await _apiService.SendRequestAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception(await response.Content.ReadAsStringAsync());
+            }
+        }
+
 
         public class GoalResponse
         {

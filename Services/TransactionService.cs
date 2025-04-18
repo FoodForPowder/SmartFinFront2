@@ -1,5 +1,4 @@
-﻿
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using SmartFinFront.Models;
 using System.Collections.Generic;
 using System.Text;
@@ -71,6 +70,23 @@ namespace SmartFinFront.Services
             var response = await _apiService.SendRequestAsync(request);
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadAsStringAsync();
+        }
+
+        public async Task<IEnumerable<Transaction>> ImportBankStatement(int userId, string bankName, MultipartFormDataContent content)
+        {
+            var response = await _apiService.SendRequestAsync(
+                new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/import?userId={userId}&bankName={bankName}")
+                {
+                    Content = content
+                });
+
+            response.EnsureSuccessStatusCode();
+
+            var result = JsonSerializer.Deserialize<dynamic>(
+                await response.Content.ReadAsStringAsync());
+
+            return JsonSerializer.Deserialize<IEnumerable<Transaction>>(
+                result.GetProperty("transactions").ToString());
         }
     }
 }
