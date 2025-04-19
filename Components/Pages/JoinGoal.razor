@@ -1,4 +1,4 @@
-﻿@page "/join/{goalId:int}"
+﻿@page "/join"
 @using SmartFinFront.Models
 @using SmartFinFront.Services
 @inject GoalService _goalService
@@ -38,7 +38,7 @@
 </MudContainer>
 
 @code {
-    [Parameter] public int goalId { get; set; }
+    [Parameter][SupplyParameterFromQuery] public string token { get; set; }
 
     private bool _isLoading = true;
     private string _errorMessage = string.Empty;
@@ -52,14 +52,22 @@
             return;
         }
 
-        await ProcceedJoinGoal();
+        if (string.IsNullOrEmpty(token))
+        {
+            _errorMessage = "Некорректная ссылка-приглашение";
+            _isLoading = false;
+            return;
+        }
+
+        await ProcessJoinGoal();
     }
 
-    private async Task ProcceedJoinGoal()
+    private async Task ProcessJoinGoal()
     {
         try
         {
-             await _goalService.JoinGoal(goalId, _authService._userAuthInfo.userId);
+            // Вызываем API для присоединения к цели
+            await _goalService.JoinGoalWithToken(token);
             Snackbar.Add("Вы успешно присоединились к цели", Severity.Success);
         }
         catch (Exception ex)

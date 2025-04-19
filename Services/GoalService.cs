@@ -101,19 +101,22 @@ namespace SmartFinFront.Services
             var a = await response.Content.ReadAsStringAsync();
             response.EnsureSuccessStatusCode();
         }
-
         public async Task<string> GenerateInviteLink(int goalId)
         {
             var request = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/{goalId}/invite");
             var response = await _apiService.SendRequestAsync(request);
             response.EnsureSuccessStatusCode();
-            return await response.Content.ReadAsStringAsync();
+
+            var jsonResponse = await response.Content.ReadAsStringAsync();
+            var result = JsonConvert.DeserializeObject<dynamic>(jsonResponse);
+            return result.inviteUrl;
         }
 
-        public async Task JoinGoal(int goalId, int userId)
+        public async Task JoinGoalWithToken(string token)
         {
-            var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/join/{goalId}?userId={userId}");
-            var response =  await _apiService.SendRequestAsync(request);
+            var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/join?token={token}");
+            var response = await _apiService.SendRequestAsync(request);
+
             if (!response.IsSuccessStatusCode)
             {
                 throw new Exception(await response.Content.ReadAsStringAsync());

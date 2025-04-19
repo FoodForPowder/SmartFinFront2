@@ -23,21 +23,21 @@
             }
             <div>
                 <MudIconButton Icon="@Icons.Material.Outlined.Add" Size="Size.Small"
-                    OnClick="@(async () => await OpenContributionDialog())" />
+                OnClick="@(async () => await OpenContributionDialog())" />
                 <MudIconButton Icon="@Icons.Material.Outlined.Share" Size="Size.Small"
-                    OnClick="@(async () => await ShareGoal())" />
+                OnClick="@(async () => await ShareGoal())" />
                 @if (!isEditing)
                 {
                     <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small"
-                        OnClick="@(() => isEditing = true)" />
+                    OnClick="@(() => isEditing = true)" />
                 }
                 else
                 {
                     <MudIconButton Icon="@Icons.Material.Outlined.Check" Size="Size.Small"
-                        OnClick="@(async () => await EditGoal(goal))" />
+                    OnClick="@(async () => await EditGoal(goal))" />
                 }
                 <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small"
-                    OnClick="@(async () => await DeleteGoal(goal))" />
+                OnClick="@(async () => await DeleteGoal(goal))" />
             </div>
         </div>
         <MudGrid>
@@ -83,7 +83,7 @@
             </MudItem>
         </MudGrid>
         <MudProgressLinear Color="@GetProgressColor(goal.currentSum, goal.plannedSum)"
-            Value="@((float)(goal.currentSum / goal.plannedSum * 100))" Class="my-2">
+        Value="@((float)(goal.currentSum / goal.plannedSum * 100))" Class="my-2">
 
         </MudProgressLinear>
         <MudText Typo="Typo.subtitle2">Последний взнос: @goal.lastContributionDate.ToShortDateString() -
@@ -213,10 +213,11 @@
     {
         try
         {
+            // Получаем ссылку-приглашение от сервера
+            var inviteLink = await _goalService.GenerateInviteLink(goal.id);
             var baseUrl = NavigationManager.BaseUri.TrimEnd('/');
-            var inviteLink = $"{baseUrl}/join/{goal.id}";
-
-            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", inviteLink);
+            // Копируем ссылку в буфер обмена
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", baseUrl + inviteLink);
             Snackbar.Add("Ссылка-приглашение скопирована в буфер обмена", Severity.Success);
         }
         catch (Exception ex)
